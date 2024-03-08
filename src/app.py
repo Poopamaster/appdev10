@@ -1,79 +1,64 @@
-from flask import Flask,jsonify,request
-from flask_cors import CORS
-from pymongo.mongo_client import MongoClient
+from flask import Flask, request, jsonify
+from flask_cors import CORS,cross_origin
 app = Flask(__name__)
-CORS(app)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
-uri = "mongodb+srv://tosawatj:040DwOii3grR28re@cluster0.rrftghz.mongodb.net/"
-
-client = MongoClient(uri)
-db = client["products"]
-collection = db["products"]
-
+books=[
+    {"id":1,"title":"Harry Potter","author":"J.K. Rowling"},
+    {"id":2,"title":"Book 2","author":"Author 2"},
+    {"id":3,"title":"Book 3","author":"Author 3"}
+]
 @app.route("/")
 def hello_world():
-    return "<p>Hello, World!</p>"
+    return "<h1>Hello world</h1>"
 
-@app.route("/products",methods=["GET"])
-def get_all_products():
-    products = list(collection.find({}))
-    product_list = []
-    
-    for product in products:
-        product_data = {
-            "_id" : str(product["_id"]),
-            "name" : product["name"],
-            "price" : product["price"],
-            "img": product["img"]
-        }
-        product_list.append(product_data)
-    return jsonify({"products": product_list})
+@app.route("/books",methods=["GET"])
+@cross_origin()
+def get_all_books():
+    return jsonify({"books":books})
 
-@app.route("/products", methods=["POST"])
-def add_product():
+@app.route("/books/<int:book_id>",methods=["GET"])
+@cross_origin
+def get_book(book_id):
+    book =  next(( b for b in books if b["id"]==book_id ),None)
+    if book:
+        return jsonify(book)
+    else:
+        return jsonify({"error":"Book not found"}),404
+
+@app.route("/books",methods=["POST"])
+@cross_origin()
+def create_book():
     data = request.get_json()
-    
-    existing_product = collection.find_one({"_id": data.get("_id")})
-    if existing_product:
-        return jsonify({"error": "Cannot add product"}),500
-    
-    new_product = {
-        "_id" : data.get("_id"),
-        "name" : data.get("name"),
-        "price" : data.get("price"),
-        "img" : data.get("img")
+    new_book={
+        "id":len(books)+1,
+        "title":data["title"],
+        "author":data["author"]
     }
-    result = collection.insert_one(new_product)
-    return jsonify({"product": new_product}), 200
+    books.append(new_book)
+    return jsonify(new_book),201
 
-@app.route("/products/<string:prod_id>", methods=["DELETE"])
-def delete_student(prod_id):
-    existing_student = collection.find_one({"_id": prod_id})
-
-    if existing_student:
-        collection.delete_one({"_id": prod_id})
-        return jsonify({"message": "Product deleted successfully"}), 200
+@app.route("/books/<int:book_id>",methods=["PUT"])
+@cross_origin()
+def update_book(book_id):
+    book = next((b for b in books if b["id"]==book_id),None)
+    if book:
+        data = request.get_json()
+        book.update(data)
+        return jsonify(book)
     else:
-        return jsonify({"error": "Product not found"}), 404
+        return jsonify({"error":"Book not found"}),404
 
-@app.route("/products/<string:prod_id>", methods=["PUT"])
-def update_product(prod_id):
-    data = request.get_json()
-
-    existing_product = collection.find_one({"_id": prod_id})
-
-    if existing_product:
-        updated_product = {
-            "name": data.get("name", existing_product["name"]),
-            "price": data.get("price", existing_product["price"]),
-            "img": data.get("img", existing_product["img"])
-        }
-
-        collection.update_one({"_id": prod_id}, {"$set": updated_product})
-
-        return jsonify({"product": updated_product}), 200
+@app.route("/books/<int:book_id>",methods=["DELETE"])
+@cross_origin()
+def delete_book(book_id):
+    book = next((b for b in books if b["id"]==book_id),None)
+    if book:
+        books.remove(book)
+        return jsonify({"message":"Book deleted successfully"}),200
     else:
-        return jsonify({"error": "Product not found"}), 404
+        return jsonify({"error":"Book not found"}),404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=5000,debug=True)
